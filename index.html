@@ -177,6 +177,20 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 .mbtns{display:flex;gap:8px;justify-content:flex-end}
 @media (max-width:1023px){#preview{padding:14px 16px 70px}.tabs{top:calc(60px + env(safe-area-inset-top,0px))}.chips{top:calc(104px + env(safe-area-inset-top,0px))}}
 
+/* signature upload */
+.signbox{margin-top:14px;padding:12px;border:1px dashed var(--sky2);border-radius:14px;background:var(--sky);display:grid;gap:10px}
+.signbox strong{font-size:13.5px;color:var(--navy)}
+.signbox .note{margin:4px 0 0}
+.sg-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.sg-prev{flex:1 1 160px;min-width:0;height:84px;border-radius:10px;background:#fff;border:1px solid var(--line);display:grid;place-items:center;overflow:hidden}
+.sg-prev img{max-width:92%;max-height:76px;object-fit:contain}
+.sg-prev span{font-size:12px;color:var(--mute)}
+.sg-btns{display:flex;gap:8px;flex-wrap:wrap}
+.sg-btns label.btn{cursor:pointer}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:#3a4f73;cursor:pointer}
+.chk input{width:18px;height:18px;padding:0;accent-color:var(--navy)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
 </style>
 
 <!-- Report card styles. Kept inline so the PDF exporter can embed them. -->
@@ -264,7 +278,9 @@ h3.sec:first-of-type{margin-top:0}
 .rbox{height:330px;flex:none;border:1.4px solid var(--bd);border-radius:12px;background:rgba(255,255,255,.7);padding:14px 16px;overflow:hidden}
 .rtext{font-size:16px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;color:#0b1f44}
 .sigs{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:64px;flex:none}
-.sigs>div{text-align:center}
+.sigs>div{text-align:center;position:relative}
+.sgi{position:absolute;left:0;right:0;bottom:100%;margin-bottom:1px;display:flex;justify-content:center;align-items:flex-end}
+.sgi img{max-height:58px;max-width:88%;width:auto;height:auto;object-fit:contain}
 .sigs i{display:block;border-top:1.4px solid var(--navy);margin:0 4px 7px}
 .sigs span{font-size:14px;font-weight:700;letter-spacing:.02em}
 .plane{flex:1 1 0;min-height:0;display:flex;align-items:center;justify-content:center;padding:10px 0}
@@ -464,7 +480,7 @@ window.ASSETS = {"fonts": {"Inter-Bold": "data:font/woff;base64,d09GRk9UVE8AAMV8
     return '' +
       '<h3 class="sec big">' + iconChat + ' Teacher’s Overall Remark</h3>' +
       '<div class="rbox" id="rbox"><div class="rtext" id="rtext">' + esc(s.remark) + '</div></div>' +
-      '<div class="sigs"><div><i></i><span>Class Teacher’s Sign</span></div><div><i></i><span>Principal’s Sign</span></div><div><i></i><span>Parent’s Sign</span></div></div>' +
+      '<div class="sigs"><div><i></i><span>Class Teacher’s Sign</span></div><div>' + (s.signUrl ? '<div class="sgi"><img src="' + s.signUrl + '" alt=""></div>' : '') + '<i></i><span>Principal’s Sign</span></div><div><i></i><span>Parent’s Sign</span></div></div>' +
       '<div class="plane"><img src="' + IMG('plane-boy') + '" alt=""></div>' +
       '<h3 class="sec big key">Key:</h3>' +
       '<table class="keyt"><tbody>' +
@@ -668,7 +684,9 @@ window.ASSETS = {"fonts": {"Inter-Bold": "data:font/woff;base64,d09GRk9UVE8AAMV8
       '<p class="note">Grade key: A+ 100–95 · A 94–90 · B+ 89–85 · B 84–70 · C 69–60 · D below 60 · E below 45 (Fail)</p>';
 
     const remBody = field('Overall remark', 'remark', { area: 1, rows: 7, max: 900, ph: 'Write the teacher’s overall remark. Text auto-sizes to fit the page.', span: 2 }) +
-      '<p class="note">Signature spaces for Class Teacher, Principal and Parent are added to page 2 automatically.</p>';
+      '<div class="signbox"><div><strong>Principal’s signature</strong><p class="note">Add a picture of the signature. It is saved on this device and used on every card until you remove it. Class Teacher and Parent keep a blank line to sign by hand.</p></div>' +
+      '<div class="sg-row"><div class="sg-prev" id="signPrev"></div><div class="sg-btns"><label class="btn soft" for="signFile">Upload picture</label><input type="file" id="signFile" accept="image/*" class="sr-only"><button type="button" class="btn ghost" id="signDel">Remove</button></div></div>' +
+      '<label class="chk"><input type="checkbox" id="signClean" checked><span>Remove white background</span></label></div>';
 
     $('#form').innerHTML =
       section('student', 'Student information', I.user, infoBody, 'Fields marked * are required to download or print.') +
@@ -676,9 +694,10 @@ window.ASSETS = {"fonts": {"Inter-Bold": "data:font/woff;base64,d09GRk9UVE8AAMV8
       section('personal', 'Personal & social development', I.star, listBody('skills'), 'Add, rename or remove items. Use fewer for younger classes. Leave empty to hide this table.') +
       section('co', 'Co-curricular activities', I.palette, listBody('co'), 'Add, rename or remove items. Leave empty to hide this table.') +
       section('result', 'Result & promotion', I.trophy, resBody) +
-      section('remark', 'Overall remark (page 2)', I.pen, remBody);
+      section('remark', 'Overall remark & signature (page 2)', I.pen, remBody);
     updateCount();
     refreshList('skills'); refreshList('co');
+    refreshSign();
   }
 
   function updateCount() {
@@ -687,12 +706,62 @@ window.ASSETS = {"fonts": {"Inter-Bold": "data:font/woff;base64,d09GRk9UVE8AAMV8
     if (b) b.disabled = state.subjects.length >= MAX_SUBJECTS;
   }
 
+  /* ---------- principal's signature (kept on this device, survives Reset) ---------- */
+  const SIGN_KEY = 'kams-principal-sign-v1';
+  let signRaw = '', signClean = true, signUrl = '';
+  try {
+    const sv = JSON.parse(localStorage.getItem(SIGN_KEY) || 'null');
+    if (sv && typeof sv.raw === 'string' && sv.raw.indexOf('data:image/') === 0) { signRaw = sv.raw; signClean = sv.clean !== false; }
+  } catch (e) { /* ignore */ }
+  const saveSign = () => { try { localStorage.setItem(SIGN_KEY, JSON.stringify({ raw: signRaw, clean: signClean })); return true; } catch (e) { return false; } };
+
+  const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+
+  // Shrinks the picture so it stays small to store and embed.
+  async function shrinkImage(file) {
+    const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+    const img = await loadImg(data);
+    const k = Math.min(1, 700 / img.width, 280 / img.height);
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/png');
+  }
+
+  // Turns a white or light-grey paper background transparent, keeping the ink.
+  async function cleanBackground(raw) {
+    const img = await loadImg(raw);
+    const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+    const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height), px = d.data;
+    for (let i = 0; i < px.length; i += 4) {
+      const lum = 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+      const a = lum >= 235 ? 0 : lum > 170 ? (235 - lum) / 65 : 1;
+      px[i + 3] = Math.round(px[i + 3] * a);
+    }
+    x.putImageData(d, 0, 0);
+    return c.toDataURL('image/png');
+  }
+
+  let signTick = 0;
+  async function refreshSign() {
+    const tick = ++signTick;
+    let url = '';
+    if (signRaw) { try { url = signClean ? await cleanBackground(signRaw) : signRaw; } catch (e) { url = signRaw; } }
+    if (tick !== signTick) return;
+    signUrl = url;
+    const prev = $('#signPrev'); if (prev) prev.innerHTML = url ? '<img alt="Principal’s signature" src="' + url + '">' : '<span>No signature added</span>';
+    const del = $('#signDel'); if (del) del.hidden = !signRaw;
+    const chk = $('#signClean'); if (chk) { chk.checked = signClean; chk.closest('label').hidden = !signRaw; }
+    schedule();
+  }
+
   /* ---------- preview ---------- */
   let raf = 0;
   function schedule() { cancelAnimationFrame(raf); raf = requestAnimationFrame(renderPreview); }
 
   function renderPreview() {
-    const res = Card.render(state, $('#page1'), $('#page2'));
+    const res = Card.render(Object.assign({}, state, { signUrl }), $('#page1'), $('#page2'));
     const lvl = res.page1.level;
     const badge = $('#fitBadge'), warn = $('#fitWarn');
     badge.textContent = 'Auto-fit: ' + (lvl <= 1 ? 'comfortable' : lvl <= 3 ? 'compact' : 'very compact');
@@ -901,6 +970,19 @@ window.ASSETS = {"fonts": {"Inter-Bold": "data:font/woff;base64,d09GRk9UVE8AAMV8
     if (tab) showTab(tab.dataset.tab);
   });
 
+  document.addEventListener('change', async (e) => {
+    if (e.target.id === 'signFile' && e.target.files && e.target.files[0]) {
+      try {
+        signRaw = await shrinkImage(e.target.files[0]);
+        if (!saveSign()) toast('Signature added, but this browser could not save it for next time.', 'warn');
+        else toast('Principal’s signature added.', 'ok');
+      } catch (err) { toast('Could not read that picture. Try a PNG or JPG.', 'warn'); }
+      e.target.value = ''; refreshSign();
+    } else if (e.target.id === 'signClean') { signClean = e.target.checked; saveSign(); refreshSign(); }
+  });
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#signDel')) { signRaw = ''; saveSign(); refreshSign(); }
+  });
   $('#btnPdf').addEventListener('click', downloadPdf);
   $('#btnPrint').addEventListener('click', printCard);
   $('#btnReset').addEventListener('click', resetAll);
